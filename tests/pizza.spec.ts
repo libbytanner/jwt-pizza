@@ -1,6 +1,6 @@
 import { Page } from "@playwright/test";
 import { test, expect } from "playwright-test-coverage";
-import { Role, User } from "../src/service/pizzaService";
+import { Franchise, Role, User } from "../src/service/pizzaService";
 
 test("home page loads", async ({ page }) => {
   await page.goto("http://localhost:5173/");
@@ -45,6 +45,54 @@ test("purchase with login", async ({ page }) => {
   await expect(page.getByText("VerifyOrder more")).toBeVisible();
 });
 
+test("admin view franchises", async ({ page }) => {
+  await init(page);
+  await page.getByRole("link", { name: "Login" }).click();
+  await loginAsAdmin(page);
+  await expect(page.getByRole("link", { name: "MA" })).toBeVisible();
+  await page.getByRole("link", { name: "Admin" }).click();
+  await expect(page.getByText("Mama Ricci's kitchen")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "LotaPizza" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "PizzaCorp" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "topSpot" })).toBeVisible();
+});
+
+test("admin add and delete franchise", async ({ page }) => {
+  await init(page);
+  await page.getByRole("link", { name: "Login" }).click();
+  await loginAsAdmin(page);
+  await page.getByRole("link", { name: "Admin" }).click();
+
+  await page.getByRole("button", { name: "Add Franchise" }).click();
+  await page
+    .getByRole("textbox", { name: "franchise name" })
+    .fill("TEST FRANCHISE");
+  await page
+    .getByRole("textbox", { name: "franchisee admin email" })
+    .fill("f@franchisee.com");
+  await page.getByRole("button", { name: "Create" }).click();
+  await expect(
+    page.getByRole("cell", { name: "TEST FRANCHISE" })
+  ).toBeVisible();
+  await page
+    .getByRole("row", { name: "TEST FRANCHISE Close" })
+    .getByRole("button")
+    .click();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(
+    page.getByRole("cell", { name: "TEST FRANCHISE" })
+  ).toBeVisible();
+  await page
+    .getByRole("row", { name: "TEST FRANCHISE Close" })
+    .getByRole("button")
+    .click();
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByText("Mama Ricci's")).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "TEST FRANCHISE" })
+  ).not.toBeVisible();
+});
+
 async function init(page: Page) {
   let loggedInUser: User | undefined;
   const validUsers: Record<string, User> = {
@@ -55,8 +103,39 @@ async function init(page: Page) {
       password: "test",
       roles: [{ role: Role.Diner }],
     },
-    'a@admin.com': { id: '3', name: 'Mr. Admin', email: 'a@admin.com', password: 'a', roles: [{ role: Role.Admin }] }
+    "a@admin.com": {
+      id: "3",
+      name: "Mr. Admin",
+      email: "a@admin.com",
+      password: "a",
+      roles: [{ role: Role.Admin }],
+    },
+    "f@franchisee.com": {
+      id: "4",
+      name: "Franchisee",
+      email: "f@franchisee.com",
+      password: "test",
+      roles: [{ role: Role.Franchisee }],
+    },
   };
+
+  const validFranchises: Franchise[] = [
+    {
+      id: "2",
+      name: "LotaPizza",
+      stores: [
+        { id: "4", name: "Lehi", totalRevenue: 0.003 },
+        { id: "5", name: "Springville", totalRevenue: 0.5 },
+        { id: "6", name: "American Fork", totalRevenue: 0 },
+      ],
+    },
+    {
+      id: "3",
+      name: "PizzaCorp",
+      stores: [{ id: "7", name: "Spanish Fork" }],
+    },
+    { id: "4", name: "topSpot", stores: [] },
+  ];
 
   // Authorize login for the given user
   await page.route("*/**/api/auth", async (route) => {
@@ -113,24 +192,48 @@ async function init(page: Page) {
     await route.fulfill({ json: menuRes });
   });
 
+  
   // gets franchises and stores
   await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
+    if (route.request().method() !== "GET") {
+      return route.fallback();
+    }
+
     const franchiseRes = {
-      franchises: [
-        {
-          id: 2,
-          name: "LotaPizza",
-          stores: [
-            { id: 4, name: "Lehi" },
-            { id: 5, name: "Springville" },
-            { id: 6, name: "American Fork" },
-          ],
-        },
-        { id: 3, name: "PizzaCorp", stores: [{ id: 7, name: "Spanish Fork" }] },
-        { id: 4, name: "topSpot", stores: [] },
-      ],
+      franchises: validFranchises,
     };
     expect(route.request().method()).toBe("GET");
+    await route.fulfill({ json: franchiseRes });
+  });
+
+  // delete franchise
+  await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
+    if (route.request().method() !== "DELETE") {
+      return route.fallback();
+    }
+
+    const franchiseRes = {
+      franchises: validFranchises,
+    };
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({ json: franchiseRes });
+  });
+
+  //create franchise
+  await page.route("*/**/api/franchise", async (route) => {
+    if (route.request().method() === 'POST') {
+      route.continue()
+    }
+    const req = route.request().postDataJSON();
+    if (!loggedInUser || !Role.isRole(loggedInUser, Role.Admin)) {
+      await route.fulfill({ status: 401, json: { error: "Unauthorized" } });
+      return;
+    }
+    validFranchises.push(req);
+    const franchiseRes = {
+      validFranchises,
+    };
+    expect(route.request().method()).toBe("POST");
     await route.fulfill({ json: franchiseRes });
   });
 
@@ -143,3 +246,10 @@ async function loginAsDiner(page: Page) {
   await page.getByRole("button", { name: "Login" }).click();
 }
 
+async function loginAsAdmin(page: Page) {
+  await page
+    .getByRole("textbox", { name: "Email address" })
+    .fill("a@admin.com");
+  await page.getByRole("textbox", { name: "Password" }).fill("a");
+  await page.getByRole("button", { name: "Login" }).click();
+}
