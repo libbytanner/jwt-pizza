@@ -47,7 +47,6 @@ test("purchase with login", async ({ page }) => {
 
 test("admin view franchises", async ({ page }) => {
   await init(page);
-  await page.getByRole("link", { name: "Login" }).click();
   await loginAsAdmin(page);
   await expect(page.getByRole("link", { name: "MA" })).toBeVisible();
   await page.getByRole("link", { name: "Admin" }).click();
@@ -59,7 +58,6 @@ test("admin view franchises", async ({ page }) => {
 
 test("admin add and delete franchise", async ({ page }) => {
   await init(page);
-  await page.getByRole("link", { name: "Login" }).click();
   await loginAsAdmin(page);
   await page.getByRole("link", { name: "Admin" }).click();
 
@@ -79,6 +77,7 @@ test("admin add and delete franchise", async ({ page }) => {
     .getByRole("button")
     .click();
   await page.getByRole("button", { name: "Cancel" }).click();
+
   await expect(
     page.getByRole("cell", { name: "TEST FRANCHISE" })
   ).toBeVisible();
@@ -92,6 +91,16 @@ test("admin add and delete franchise", async ({ page }) => {
     page.getByRole("cell", { name: "TEST FRANCHISE" })
   ).not.toBeVisible();
 });
+
+test("admin close store", async ({page}) => {
+  await init(page);
+  await loginAsAdmin(page);
+  await page.getByRole("link", { name: "Admin" }).click();
+  await page.getByRole('row', { name: 'American Fork 0 ₿ Close' }).getByRole('button').click();
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByRole('cell', { name: 'Lehi' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'American Fork' })).not.toBeVisible();
+})
 
 async function init(page: Page) {
   let loggedInUser: User | undefined;
@@ -114,7 +123,7 @@ async function init(page: Page) {
       id: "4",
       name: "Franchisee",
       email: "f@franchisee.com",
-      password: "test",
+      password: "f",
       roles: [{ role: Role.Franchisee }],
     },
   };
@@ -207,33 +216,54 @@ async function init(page: Page) {
   });
 
   // delete franchise
-  await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
+  await page.route(/\/api\/franchise\/([a-zA-Z0-9]+)$/, async (route) => {
     if (route.request().method() !== "DELETE") {
       return route.fallback();
     }
+    const match = route.request().url().match(/\/api\/franchise\/([a-zA-Z0-9]+)/)
+    const franchiseId = match ? match[1] : null;
+    const ind = validFranchises.findIndex(franchise => franchise.id === franchiseId)
+    validFranchises.splice(ind, 1)
 
     const franchiseRes = {
       franchises: validFranchises,
     };
-    expect(route.request().method()).toBe("GET");
+    expect(route.request().method()).toBe("DELETE");
     await route.fulfill({ json: franchiseRes });
   });
 
-  //create franchise
+  // create franchise
   await page.route("*/**/api/franchise", async (route) => {
-    if (route.request().method() === 'POST') {
-      route.continue()
-    }
     const req = route.request().postDataJSON();
     if (!loggedInUser || !Role.isRole(loggedInUser, Role.Admin)) {
       await route.fulfill({ status: 401, json: { error: "Unauthorized" } });
       return;
     }
-    validFranchises.push(req);
+    validFranchises.push({id: '5', name: req.name, stores: []});
     const franchiseRes = {
       validFranchises,
     };
     expect(route.request().method()).toBe("POST");
+    await route.fulfill({ json: franchiseRes });
+  });
+
+  // close store
+  await page.route(/\/api\/franchise\/([a-zA-Z0-9]+)\/store\/([a-zA-Z0-9]+)$/, async (route) => {
+    if (!loggedInUser || !Role.isRole(loggedInUser, Role.Admin)) {
+      await route.fulfill({ status: 401, json: { error: "Unauthorized" } });
+      return;
+    }
+    const match = route.request().url().match(/\/api\/franchise\/([a-zA-Z0-9]+)/)
+    const franchiseId = match ? match[1] : null;
+    const storeId = match ? match[2] : null;
+    const franchiseInd = validFranchises.findIndex(franchise => franchise.id === franchiseId);
+    const ind = validFranchises.find(franchise => franchise.id === franchiseId)?.stores.findIndex(store => store.id === storeId)
+    if (ind) validFranchises[franchiseInd].stores.splice(ind, 1)
+
+    const franchiseRes = {
+      franchises: validFranchises,
+    };
+    expect(route.request().method()).toBe("DELETE");
     await route.fulfill({ json: franchiseRes });
   });
 
@@ -247,9 +277,11 @@ async function loginAsDiner(page: Page) {
 }
 
 async function loginAsAdmin(page: Page) {
+  await page.getByRole("link", { name: "Login" }).click();
   await page
     .getByRole("textbox", { name: "Email address" })
     .fill("a@admin.com");
   await page.getByRole("textbox", { name: "Password" }).fill("a");
   await page.getByRole("button", { name: "Login" }).click();
 }
+
