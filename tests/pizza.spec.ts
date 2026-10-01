@@ -44,14 +44,16 @@ test("login", async ({ page }) => {
   ).toBeVisible();
 });
 
-test('logout', async ({page}) => {
+test("logout", async ({ page }) => {
   await init(page);
   await page.getByRole("link", { name: "Login" }).click();
   await loginAsDiner(page);
-  await expect(page.getByRole("link", { name: "T", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "T", exact: true })
+  ).toBeVisible();
   await page.getByRole("link", { name: "Logout" }).click();
   await expect(page.getByRole("link", { name: "Login" })).toBeVisible();
-})
+});
 
 test("diner dashboard", async ({ page }) => {
   await init(page);
@@ -141,6 +143,35 @@ test("admin close store", async ({ page }) => {
   ).not.toBeVisible();
 });
 
+test("view franchisee dashboard", async ({ page }) => {
+  await init(page);
+  await loginAsFranchisee(page);
+  await expect(page.getByText("The web's best pizza").first()).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Global" })
+    .getByRole("link", { name: "Franchise" })
+    .click();
+  await expect(page.getByText("LotaPizza")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Lehi" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "0.003 ₿" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Create store" })
+  ).toBeVisible();
+});
+
+test("create store as franchisee", async ({ page }) => {
+  await init(page);
+  await loginAsFranchisee(page);
+  await page
+    .getByRole("navigation", { name: "Global" })
+    .getByRole("link", { name: "Franchise" })
+    .click();
+  await page.getByRole("button", { name: "Create store" }).click();
+  await page.getByRole("textbox", { name: "store name" }).fill("New Store");
+  await page.getByRole("button", { name: "Create" }).click();
+  await expect(page.getByRole("cell", { name: "New Store" })).toBeVisible();
+});
+
 async function init(page: Page) {
   let loggedInUser: User | undefined;
   const validUsers: Record<string, User> = {
@@ -228,7 +259,7 @@ async function init(page: Page) {
     await route.fulfill({ json: loginRes });
   });
 
-          // logout
+  // logout
   await page.route("*/**/api/auth", async (route) => {
     if (route.request().method() !== "DELETE") {
       route.fallback();
@@ -237,7 +268,7 @@ async function init(page: Page) {
     const logoutReq = route.request().postDataJSON();
     loggedInUser = undefined;
     const logoutRes = {
-      message: 'logout successful'
+      message: "logout successful",
     };
     expect(route.request().method()).toBe("DELETE");
     await route.fulfill({ json: logoutRes });
@@ -410,6 +441,26 @@ async function init(page: Page) {
     }
   );
 
+  // get user franchises
+  await page.route(/\/api\/franchise\/([a-zA-Z0-9]+)$/, async (route) => {
+    if (route.request().method() !== "GET") {
+      return route.fallback();
+    }
+    const match = route
+      .request()
+      .url()
+      .match(/\/api\/franchise\/([a-zA-Z0-9]+)/);
+    const userId = match ? match[1] : null;
+    if (userId !== loggedInUser?.id) {
+    }
+    const userFranchises = validFranchises.filter((franchise) =>
+      franchise.admins?.some((admin) => admin.id === userId)
+    );
+
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({ json: userFranchises });
+  });
+
   await page.goto("http://localhost:5173/");
 }
 
@@ -425,6 +476,15 @@ async function loginAsAdmin(page: Page) {
     .getByRole("textbox", { name: "Email address" })
     .fill("a@admin.com");
   await page.getByRole("textbox", { name: "Password" }).fill("a");
+  await page.getByRole("button", { name: "Login" }).click();
+}
+
+async function loginAsFranchisee(page: Page) {
+  await page.getByRole("link", { name: "Login" }).click();
+  await page
+    .getByRole("textbox", { name: "Email address" })
+    .fill("f@franchisee.com");
+  await page.getByRole("textbox", { name: "Password" }).fill("f");
   await page.getByRole("button", { name: "Login" }).click();
 }
 
