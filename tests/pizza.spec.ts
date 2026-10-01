@@ -1,5 +1,5 @@
 import { Page } from "@playwright/test";
-import { test, expect } from "playwright-test-coverage";
+import { test, expect } from './testSetup';
 import { Franchise, Role, User } from "../src/service/pizzaService";
 
 test("home page loads", async ({ page }) => {
@@ -18,6 +18,8 @@ test("test static pages", async ({ page }) => {
   await expect(page.getByText("The secret sauce")).toBeVisible();
   await page.getByRole("link", { name: "History" }).click();
   await expect(page.getByText("Mama Rucci, my my")).toBeVisible();
+  await page.goto("http://localhost:5173/invalid-route");
+  await expect(page.getByText("Oops")).toBeVisible();
 });
 
 test("login", async ({ page }) => {
@@ -29,19 +31,29 @@ test("login", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("purchase with login", async ({ page }) => {
+test("diner dashboard", async ({ page }) => {
   await init(page);
-  await page.getByRole("button", { name: "Order now" }).click();
-  await page.getByRole("combobox").selectOption("4");
-  await page.getByRole("link", { name: "Image Description Pepperoni" }).click();
-  await page.getByRole("link", { name: "Image Description Veggie" }).click();
-  await page.getByRole("button", { name: "Checkout" }).click();
+  await page.getByRole("link", { name: "Login" }).click();
+  await loginAsDiner(page);
+  await expect(page.getByText("The web's best pizza").first()).toBeVisible();
+  await orderPizzas(page);
+  await page.getByRole("button", { name: "Pay now" }).click();
+  await expect(page.getByText("VerifyOrder more")).toBeVisible();
+  await page.getByRole("link", { name: "T", exact: true }).click();
+  await expect(page.getByText("Your pizza kitchen")).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "1", exact: true })
+  ).toBeVisible();
+});
+
+test("purchase pizzas", async ({ page }) => {
+  await init(page);
+  await orderPizzas(page);
   await loginAsDiner(page);
   await expect(page.getByRole("cell", { name: "Pepperoni" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Veggie" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "pies" })).toBeVisible();
   await page.getByRole("button", { name: "Pay now" }).click();
-  await page.getByText("VerifyOrder more").click();
   await expect(page.getByText("VerifyOrder more")).toBeVisible();
 });
 
@@ -92,15 +104,21 @@ test("admin add and delete franchise", async ({ page }) => {
   ).not.toBeVisible();
 });
 
-test("admin close store", async ({page}) => {
+test("admin close store", async ({ page }) => {
   await init(page);
   await loginAsAdmin(page);
   await page.getByRole("link", { name: "Admin" }).click();
-  await page.getByRole('row', { name: 'American Fork 0 ₿ Close' }).getByRole('button').click();
-  await page.getByRole('button', { name: 'Close' }).click();
-  await expect(page.getByRole('cell', { name: 'Lehi' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'American Fork' })).not.toBeVisible();
-})
+  await page
+    .getByRole("row", { name: "American Fork 0 ₿ Close" })
+    .getByRole("button")
+    .click();
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("cell", { name: "Lehi" })).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "American Fork" })
+  ).not.toBeVisible();
+});
+
 
 async function init(page: Page) {
   let loggedInUser: User | undefined;
@@ -137,6 +155,7 @@ async function init(page: Page) {
         { id: "5", name: "Springville", totalRevenue: 0.5 },
         { id: "6", name: "American Fork", totalRevenue: 0 },
       ],
+      admins: [{ id: "4", name: "Franchisee", email: "f@franchisee.com" }],
     },
     {
       id: "3",
@@ -148,6 +167,10 @@ async function init(page: Page) {
 
   // Authorize login for the given user
   await page.route("*/**/api/auth", async (route) => {
+    if (route.request().method() !== "PUT") {
+      route.fallback();
+      return;
+    }
     const loginReq = route.request().postDataJSON();
     const user = validUsers[loginReq.email];
     if (!user || user.password !== loginReq.password) {
@@ -169,14 +192,34 @@ async function init(page: Page) {
     await route.fulfill({ json: loggedInUser });
   });
 
-  // orders two pizzas
+  // orders two pizzas / gets orders for diner
   await page.route("*/**/api/order", async (route) => {
-    const orderReq = route.request().postDataJSON();
-    const orderRes = {
-      order: { ...orderReq, id: 23 },
-      jwt: "eyJpYXQ",
-    };
-    expect(route.request().method()).toBe("POST");
+    let orderRes: any;
+    if (route.request().method() === "POST") {
+      const orderReq = route.request().postDataJSON();
+      orderRes = {
+        order: { ...orderReq, id: 23 },
+        jwt: "eyJpYXQ",
+      };
+      expect(route.request().method()).toBe("POST");
+    }
+    if (route.request().method() === "GET") {
+      orderRes = {
+        dinerId: 4,
+        orders: [
+          {
+            id: 1,
+            franchiseId: 1,
+            storeId: 1,
+            date: "2024-06-05T05:14:40.000Z",
+            items: [{ id: 1, menuId: 1, description: "Veggie", price: 0.05 }],
+          },
+        ],
+        page: 1,
+      };
+      expect(route.request().method()).toBe("GET");
+    }
+
     await route.fulfill({ json: orderRes });
   });
   // Gets menu
@@ -201,7 +244,6 @@ async function init(page: Page) {
     await route.fulfill({ json: menuRes });
   });
 
-  
   // gets franchises and stores
   await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") {
@@ -220,10 +262,15 @@ async function init(page: Page) {
     if (route.request().method() !== "DELETE") {
       return route.fallback();
     }
-    const match = route.request().url().match(/\/api\/franchise\/([a-zA-Z0-9]+)/)
+    const match = route
+      .request()
+      .url()
+      .match(/\/api\/franchise\/([a-zA-Z0-9]+)/);
     const franchiseId = match ? match[1] : null;
-    const ind = validFranchises.findIndex(franchise => franchise.id === franchiseId)
-    validFranchises.splice(ind, 1)
+    const ind = validFranchises.findIndex(
+      (franchise) => franchise.id === franchiseId
+    );
+    validFranchises.splice(ind, 1);
 
     const franchiseRes = {
       franchises: validFranchises,
@@ -239,7 +286,7 @@ async function init(page: Page) {
       await route.fulfill({ status: 401, json: { error: "Unauthorized" } });
       return;
     }
-    validFranchises.push({id: '5', name: req.name, stores: []});
+    validFranchises.push({ id: "5", name: req.name, stores: [] });
     const franchiseRes = {
       validFranchises,
     };
@@ -248,24 +295,63 @@ async function init(page: Page) {
   });
 
   // close store
-  await page.route(/\/api\/franchise\/([a-zA-Z0-9]+)\/store\/([a-zA-Z0-9]+)$/, async (route) => {
-    if (!loggedInUser || !Role.isRole(loggedInUser, Role.Admin)) {
-      await route.fulfill({ status: 401, json: { error: "Unauthorized" } });
-      return;
-    }
-    const match = route.request().url().match(/\/api\/franchise\/([a-zA-Z0-9]+)/)
-    const franchiseId = match ? match[1] : null;
-    const storeId = match ? match[2] : null;
-    const franchiseInd = validFranchises.findIndex(franchise => franchise.id === franchiseId);
-    const ind = validFranchises.find(franchise => franchise.id === franchiseId)?.stores.findIndex(store => store.id === storeId)
-    if (ind) validFranchises[franchiseInd].stores.splice(ind, 1)
+  await page.route(
+    /\/api\/franchise\/([a-zA-Z0-9]+)\/store\/([a-zA-Z0-9]+)$/,
+    async (route) => {
+      if (!loggedInUser || !Role.isRole(loggedInUser, Role.Admin)) {
+        await route.fulfill({ status: 401, json: { error: "Unauthorized" } });
+        return;
+      }
+      const match = route
+        .request()
+        .url()
+        .match(/\/api\/franchise\/([a-zA-Z0-9]+)/);
+      const franchiseId = match ? match[1] : null;
+      const storeId = match ? match[2] : null;
+      const franchiseInd = validFranchises.findIndex(
+        (franchise) => franchise.id === franchiseId
+      );
+      const ind = validFranchises
+        .find((franchise) => franchise.id === franchiseId)
+        ?.stores.findIndex((store) => store.id === storeId);
+      if (ind) validFranchises[franchiseInd].stores.splice(ind, 1);
 
-    const franchiseRes = {
-      franchises: validFranchises,
-    };
-    expect(route.request().method()).toBe("DELETE");
-    await route.fulfill({ json: franchiseRes });
-  });
+      const franchiseRes = {
+        franchises: validFranchises,
+      };
+      expect(route.request().method()).toBe("DELETE");
+      await route.fulfill({ json: franchiseRes });
+    }
+  );
+
+  // create franchise
+  await page.route(
+    /\/api\/franchise\/([a-zA-Z0-9]+)\/store$/,
+    async (route) => {
+      if (route.request().method() !== "POST") {
+        return route.fallback();
+      }
+      const req = route.request().postDataJSON();
+      const match = route
+        .request()
+        .url()
+        .match(/\/api\/franchise\/([a-zA-Z0-9]+)/);
+      const franchiseId = match ? match[1] : null;
+      const ind = validFranchises.findIndex(
+        (franchise) => franchise.id === franchiseId
+      );
+      const newStore = {
+        id: "10",
+        name: req.name,
+        totalRevenue: 0,
+      };
+
+      validFranchises[ind].stores.push(newStore);
+
+      expect(route.request().method()).toBe("POST");
+      await route.fulfill({ json: newStore });
+    }
+  );
 
   await page.goto("http://localhost:5173/");
 }
@@ -285,3 +371,11 @@ async function loginAsAdmin(page: Page) {
   await page.getByRole("button", { name: "Login" }).click();
 }
 
+
+async function orderPizzas(page: Page) {
+  await page.getByRole("button", { name: "Order now" }).click();
+  await page.getByRole("combobox").selectOption("4");
+  await page.getByRole("link", { name: "Image Description Pepperoni" }).click();
+  await page.getByRole("link", { name: "Image Description Veggie" }).click();
+  await page.getByRole("button", { name: "Checkout" }).click();
+}
