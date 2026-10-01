@@ -1,6 +1,6 @@
-# 🍕 JWT Pizza
+# 🍕 jwt-pizza
 
-![Coverage badge](https://pizza-factory.cs329.click/api/badge/ltanner0/jwtpizzacoverage?cachebust=1)
+[![Coverage badge](https://pizza-factory.cs329.click/api/badge/ltanner0/jwtpizzacoverage?cachebust=1)](https://pizza-factory.cs329.click/api/badge/ltanner0/jwtpizzacoverage)
 
 [![CI Pipeline](https://github.com/libbytanner/jwt-pizza/actions/workflows/ci.yml/badge.svg)](https://github.com/libbytanner/jwt-pizza/actions/workflows/ci.yml)
 
