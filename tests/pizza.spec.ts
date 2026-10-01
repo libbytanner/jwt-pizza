@@ -1,5 +1,5 @@
 import { Page } from "@playwright/test";
-import { test, expect } from './testSetup';
+import { test, expect } from "./testSetup";
 import { Franchise, Role, User } from "../src/service/pizzaService";
 
 test("home page loads", async ({ page }) => {
@@ -22,6 +22,19 @@ test("test static pages", async ({ page }) => {
   await expect(page.getByText("Oops")).toBeVisible();
 });
 
+test("register", async ({ page }) => {
+  await init(page);
+  await page.getByRole("link", { name: "Register" }).click();
+  await page.getByRole("textbox", { name: "Full name" }).fill("Test User");
+  await page
+    .getByRole("textbox", { name: "Email address" })
+    .fill("test@test.com");
+  await page.getByRole("textbox", { name: "Password" }).fill("test");
+  await page.getByRole("button", { name: "Register" }).click();
+  await expect(page.getByRole("link", { name: "Logout" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "TU" })).toBeVisible();
+});
+
 test("login", async ({ page }) => {
   await init(page);
   await page.getByRole("link", { name: "Login" }).click();
@@ -30,6 +43,15 @@ test("login", async ({ page }) => {
     page.getByRole("link", { name: "T", exact: true })
   ).toBeVisible();
 });
+
+test('logout', async ({page}) => {
+  await init(page);
+  await page.getByRole("link", { name: "Login" }).click();
+  await loginAsDiner(page);
+  await expect(page.getByRole("link", { name: "T", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Logout" }).click();
+  await expect(page.getByRole("link", { name: "Login" })).toBeVisible();
+})
 
 test("diner dashboard", async ({ page }) => {
   await init(page);
@@ -119,7 +141,6 @@ test("admin close store", async ({ page }) => {
   ).not.toBeVisible();
 });
 
-
 async function init(page: Page) {
   let loggedInUser: User | undefined;
   const validUsers: Record<string, User> = {
@@ -165,6 +186,27 @@ async function init(page: Page) {
     { id: "4", name: "topSpot", stores: [] },
   ];
 
+  // Register user
+  await page.route("*/**/api/auth", async (route) => {
+    if (route.request().method() !== "POST") {
+      route.fallback();
+      return;
+    }
+    const registerReq = route.request().postDataJSON();
+    const user = {
+      id: "5",
+      name: registerReq.name,
+      email: registerReq.email,
+      roles: [{ role: Role.Diner }],
+    };
+    const registerRes = {
+      user,
+      token: "abcdef",
+    };
+    expect(route.request().method()).toBe("POST");
+    await route.fulfill({ json: registerRes });
+  });
+
   // Authorize login for the given user
   await page.route("*/**/api/auth", async (route) => {
     if (route.request().method() !== "PUT") {
@@ -184,6 +226,21 @@ async function init(page: Page) {
     };
     expect(route.request().method()).toBe("PUT");
     await route.fulfill({ json: loginRes });
+  });
+
+          // logout
+  await page.route("*/**/api/auth", async (route) => {
+    if (route.request().method() !== "DELETE") {
+      route.fallback();
+      return;
+    }
+    const logoutReq = route.request().postDataJSON();
+    loggedInUser = undefined;
+    const logoutRes = {
+      message: 'logout successful'
+    };
+    expect(route.request().method()).toBe("DELETE");
+    await route.fulfill({ json: logoutRes });
   });
 
   // gets currently logged in user
@@ -370,7 +427,6 @@ async function loginAsAdmin(page: Page) {
   await page.getByRole("textbox", { name: "Password" }).fill("a");
   await page.getByRole("button", { name: "Login" }).click();
 }
-
 
 async function orderPizzas(page: Page) {
   await page.getByRole("button", { name: "Order now" }).click();
