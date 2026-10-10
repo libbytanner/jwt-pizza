@@ -1,6 +1,4 @@
-import { Page } from "@playwright/test";
 import { test, expect } from "playwright-test-coverage";
-import { Role, User } from "../src/service/pizzaService";
 import { init, loginAsDiner } from "./utils";
 
 
@@ -53,6 +51,7 @@ test("update user password", async ({ page }) => {
 
   await expect(page.getByRole("main")).toContainText("Test");
 });
+
 test("update user email", async ({ page }) => {
   await init(page);
   await page.getByRole("link", { name: "Login" }).click();
