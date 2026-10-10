@@ -89,38 +89,100 @@ export async function init(page: Page) {
     await route.fulfill({ json: loginRes });
   });
 
-  // updates user
-  await page.route(/\/api\/user\/([a-zA-Z0-9]+)$/, async (route) => {
-    const updateReq = route.request().postDataJSON();
-    const match = route
-      .request()
-      .url()
-      .match(/\/api\/user\/([a-zA-Z0-9]+)/);
-    const userId = match ? match[1] : null;
-    const user = Object.values(validUsers).find((valid) => valid.id === userId);
-    validUsers[updateReq.email] = {
-      name: updateReq.name,
-      email: updateReq.email,
-      password: updateReq.password ?? user?.password,
-      id: user?.id,
-      roles: user?.roles,
-    };
+    // updates user
+    await page.route(/\/api\/user\/([a-zA-Z0-9]+)$/, async (route) => {
+      const updateReq = route.request().postDataJSON();
+      const match = route
+        .request()
+        .url()
+        .match(/\/api\/user\/([a-zA-Z0-9]+)/);
+      const userId = match ? match[1] : null;
+      const user = Object.values(validUsers).find((valid) => valid.id === userId);
+      validUsers[updateReq.email] = {
+        name: updateReq.name,
+        email: updateReq.email,
+        password: updateReq.password ?? user?.password,
+        id: user?.id,
+        roles: user?.roles,
+      };
+  
+      if (user?.email !== updateReq.email) {
+        const oldEmail = user?.email ?? "";
+        const { [oldEmail]: oldUser, ...rest } = validUsers;
+        validUsers = rest;
+      }
+  
+      const updateRes = {
+        id: user?.id,
+        name: user?.name,
+        email: user?.email,
+        roles: [{ role: "diner" }],
+      };
+  
+      expect(route.request().method()).toBe("PUT");
+      await route.fulfill({ json: loggedInUser });
+    });  
 
-    if (user?.email !== updateReq.email) {
-      const oldEmail = user?.email ?? "";
-      const { [oldEmail]: oldUser, ...rest } = validUsers;
-      validUsers = rest;
+  // lists users
+  await page.route(
+    /\/api\/user\?page=([0-9]+)\&limit=([0-9]+)\&name=([a-zA-Z0-9*]+)$/,
+    async (route) => {
+      const listReq = route.request().postDataJSON();
+      const match = route
+        .request()
+        .url()
+        .match(
+          /\/api\/user\?page=([0-9]+)\&limit=([0-9]+)\&name=([a-zA-Z0-9*]+)$/
+        );
+      const page = match ? Number(match[1]) : 0;
+      const limit = match ? Number(match[2]) : 10;
+      const nameFilter = match ? match[3] : "*";
+
+      let allUsers = Object.values(validUsers);
+      if (nameFilter !== "*") {
+        allUsers = allUsers.filter((user) =>
+          user.name?.toLowerCase().includes(nameFilter.toLowerCase())
+        );
+      }
+      const users = allUsers
+        .slice(page * limit, page * limit + limit)
+        .map((user) => {
+          const roles = user.roles?.map((role) => role.role);
+          return {
+            ...user,
+            roles,
+          };
+        });
+      const validUsersSize = Object.keys(validUsers).length;
+
+      const listRes = {
+        users,
+        more: page * limit + limit >= validUsersSize ? false : true,
+      };
+
+      expect(route.request().method()).toBe("GET");
+      await route.fulfill({ json: listRes });
     }
+  );
 
-    const updateRes = {
-      id: user?.id,
-      name: user?.name,
-      email: user?.email,
-      roles: [{ role: "diner" }],
+  await page.route("*/**/api/auth", async (route) => {
+    if (route.request().method() !== "PUT") {
+      route.fallback();
+      return;
+    }
+    const loginReq = route.request().postDataJSON();
+    const user = validUsers[loginReq.email];
+    if (!user || user.password !== loginReq.password) {
+      await route.fulfill({ status: 401, json: { error: "Unauthorized" } });
+      return;
+    }
+    loggedInUser = validUsers[loginReq.email];
+    const loginRes = {
+      user: loggedInUser,
+      token: "abcdef",
     };
-
     expect(route.request().method()).toBe("PUT");
-    await route.fulfill({ json: loggedInUser });
+    await route.fulfill({ json: loginRes });
   });
 
   // logout
@@ -326,7 +388,7 @@ export async function init(page: Page) {
   });
 
   await page.goto("http://localhost:5173/");
-} 
+}
 
 export async function loginAsDiner(page: Page) {
   await page.getByRole("textbox", { name: "Email address" }).fill("t@test.com");

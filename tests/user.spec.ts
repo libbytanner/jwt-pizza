@@ -1,5 +1,5 @@
 import { test, expect } from "playwright-test-coverage";
-import { init, loginAsDiner } from "./utils";
+import { init, loginAsAdmin, loginAsDiner } from "./utils";
 
 
 test("update username", async ({ page }) => {
@@ -79,3 +79,15 @@ test("update user email", async ({ page }) => {
 
   await expect(page.getByRole("main")).toContainText("Test");
 });
+
+test("list users", async ({page}) => {
+  await init(page);
+  await loginAsAdmin(page);
+  await page.getByRole('link', { name: 'Admin' }).click();
+  await page.locator('div').filter({ hasText: 'Mama Ricci\'s kitchenUsers' }).nth(2).click();
+  await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Mr. Admin' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'a@admin.com' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'admin', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'X' }).first()).toBeVisible();
+})
