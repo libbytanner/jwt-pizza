@@ -89,15 +89,18 @@ export async function init(page: Page) {
     await route.fulfill({ json: loginRes });
   });
 
-    // updates user
-    await page.route(/\/api\/user\/([a-zA-Z0-9]+)$/, async (route) => {
+  // updates/deletes user
+  await page.route(/\/api\/user\/([a-zA-Z0-9]+)$/, async (route) => {
+    if (route.request().method() === "PUT") {
       const updateReq = route.request().postDataJSON();
       const match = route
         .request()
         .url()
         .match(/\/api\/user\/([a-zA-Z0-9]+)/);
       const userId = match ? match[1] : null;
-      const user = Object.values(validUsers).find((valid) => valid.id === userId);
+      const user = Object.values(validUsers).find(
+        (valid) => valid.id === userId
+      );
       validUsers[updateReq.email] = {
         name: updateReq.name,
         email: updateReq.email,
@@ -105,23 +108,38 @@ export async function init(page: Page) {
         id: user?.id,
         roles: user?.roles,
       };
-  
+
       if (user?.email !== updateReq.email) {
         const oldEmail = user?.email ?? "";
         const { [oldEmail]: oldUser, ...rest } = validUsers;
         validUsers = rest;
       }
-  
+
       const updateRes = {
         id: user?.id,
         name: user?.name,
         email: user?.email,
         roles: [{ role: "diner" }],
       };
-  
+
       expect(route.request().method()).toBe("PUT");
       await route.fulfill({ json: loggedInUser });
-    });  
+    } else if (route.request().method() === "DELETE") {
+      const match = route
+        .request()
+        .url()
+        .match(/\/api\/user\/([a-zA-Z0-9]+)/);
+      const userId = match ? match[1] : null;
+      const user = Object.values(validUsers).find(
+        (valid) => valid.id === userId
+      );
+
+      const email = user?.email ?? "";
+      const { [email]: oldUser, ...rest } = validUsers;
+      validUsers = rest;
+      route.fulfill({json: {message: 'successfully deleted user'}});
+    }
+  });
 
   // lists users
   await page.route(

@@ -77,8 +77,8 @@ class HttpPizzaService implements PizzaService {
     return Promise.resolve(user);
   }
 
-  logout(): void {
-    this.callEndpoint("/api/auth", "DELETE");
+  async logout() {
+    await this.callEndpoint("/api/auth", "DELETE");
     localStorage.removeItem("token");
   }
 
@@ -93,6 +93,10 @@ class HttpPizzaService implements PizzaService {
     }
     return Promise.resolve(result);
   }
+
+  async deleteUser(user: User) {
+    await this.callEndpoint(`/api/user/${user.id}`, "DELETE")
+  };
 
   async updateUser(updatedUser: User): Promise<User> {
     const { user, token } = await this.callEndpoint(

@@ -84,10 +84,28 @@ test("list users", async ({page}) => {
   await init(page);
   await loginAsAdmin(page);
   await page.getByRole('link', { name: 'Admin' }).click();
-  await page.locator('div').filter({ hasText: 'Mama Ricci\'s kitchenUsers' }).nth(2).click();
   await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Mr. Admin' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'a@admin.com' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'admin', exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'X' }).first()).toBeVisible();
+})
+
+test("delete user", async ({page}) => {
+  await init(page);
+  await loginAsAdmin(page);
+  await page.getByRole('link', { name: 'Admin' }).click();
+  await expect(page.getByRole('cell', { name: 'Test', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'X' }).nth(0).click();
+  await expect(page.getByRole('cell', { name: 'Test', exact: true })).not.toBeVisible();
+})
+
+test("filter users", async ({page}) => {
+  await init(page);
+  await loginAsAdmin(page);
+  await page.getByRole('link', { name: 'Admin' }).click();
+  await expect(page.getByRole('cell', { name: 'Mr. Admin' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Filter users' }).fill('test');
+  await page.getByRole('button', { name: 'Submit' }).first().click();
+  await expect(page.getByRole('cell', { name: 'Mr. Admin' })).not.toBeVisible();
 })
