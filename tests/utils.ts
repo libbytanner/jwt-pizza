@@ -26,6 +26,69 @@ export async function init(page: Page) {
       password: "f",
       roles: [{ role: Role.Franchisee }],
     },
+    "t2@test.com": {
+      id: "7",
+      name: "TEST",
+      email: "TEST@test.com",
+      password: "test",
+      roles: [{ role: Role.Diner }],
+    },
+    "a2@admin.com": {
+      id: "6",
+      name: "TEST",
+      email: "TEST@admin.com",
+      password: "a",
+      roles: [{ role: Role.Admin }],
+    },
+    "f2@franchisee.com": {
+      id: "5",
+      name: "TEST",
+      email: "TEST@franchisee.com",
+      password: "f",
+      roles: [{ role: Role.Franchisee }],
+    },
+    "t3@test.com": {
+      id: "8",
+      name: "TEST",
+      email: "TEST@test.com",
+      password: "test",
+      roles: [{ role: Role.Diner }],
+    },
+    "a3@admin.com": {
+      id: "9",
+      name: "TEST",
+      email: "TEST@admin.com",
+      password: "a",
+      roles: [{ role: Role.Admin }],
+    },
+    "f3@franchisee.com": {
+      id: "10",
+      name: "TEST",
+      email: "TEST@franchisee.com",
+      password: "f",
+      roles: [{ role: Role.Franchisee }],
+    },
+    "t4@test.com": {
+      id: "11",
+      name: "TEST",
+      email: "TEST@test.com",
+      password: "test",
+      roles: [{ role: Role.Diner }],
+    },
+    "a4@admin.com": {
+      id: "12",
+      name: "TEST",
+      email: "TEST@admin.com",
+      password: "a",
+      roles: [{ role: Role.Admin }],
+    },
+    "f4@franchisee.com": {
+      id: "13",
+      name: "TEST",
+      email: "TEST@franchisee.com",
+      password: "f",
+      roles: [{ role: Role.Franchisee }],
+    },
   };
 
   const validFranchises: Franchise[] = [
@@ -60,6 +123,7 @@ export async function init(page: Page) {
       email: registerReq.email,
       roles: [{ role: Role.Diner }],
     };
+    validUsers[user.email] = {...user, password: registerReq.password}
     const registerRes = {
       user,
       token: "abcdef",

@@ -87,7 +87,7 @@ test("list users", async ({page}) => {
   await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Mr. Admin' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'a@admin.com' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'admin', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'admin', exact: true }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: 'X' }).first()).toBeVisible();
 })
 
@@ -109,3 +109,15 @@ test("filter users", async ({page}) => {
   await page.getByRole('button', { name: 'Submit' }).first().click();
   await expect(page.getByRole('cell', { name: 'Mr. Admin' })).not.toBeVisible();
 })
+
+test("users pagination", async ({page}) => {
+  await init(page);
+  await loginAsAdmin(page);
+  await page.getByRole('link', { name: 'Admin' }).click();
+  await expect(page.getByRole('cell', { name: 'Mr. Admin' })).toBeVisible();
+  await expect(page.getByRole('button', {name: '«'}).first()).toBeDisabled();
+  await page.getByRole('button', {name: '»'}).first().click();
+  await expect(page.getByRole('cell', { name: 'Mr. Admin' })).not.toBeVisible();
+  await expect(page.getByRole('button', {name: '«'}).first()).toBeEnabled();
+})
+
