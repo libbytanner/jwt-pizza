@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import View from "./view";
 import { useNavigate } from "react-router-dom";
 import NotFound from "./notFound";
@@ -41,9 +41,13 @@ export default function AdminDashboard(props: Props) {
   const filterFranchiseRef = React.useRef<HTMLInputElement>(null);
   const filterUserRef = React.useRef<HTMLInputElement>(null);
 
+  const debug = useEffect(() => {
+    console.log(usersPage)
+  })
+
   React.useEffect(() => {
     (async () => {
-      setFranchiseList(await pizzaService.getFranchises(franchisePage, 3, filterUserRef.current?.value ?? "*"));
+      setFranchiseList(await pizzaService.getFranchises(franchisePage, 3, "*"));
     })();
   }, [props.user, franchisePage]);
 
@@ -65,8 +69,8 @@ export default function AdminDashboard(props: Props) {
 
   async function deleteUser(user: User) {
     await pizzaService.deleteUser(user);
-    if (userList.users.length === 1) setUsersPage(usersPage - 1)
-    setUserList(await pizzaService.getUsers(usersPage, 10, filterUserRef.current?.value ?? '*'));
+    if (userList.users.length = 1) setUsersPage(usersPage)
+    setUserList(await pizzaService.getUsers(usersPage, 10, filterUserRef.current?.value ? filterUserRef.current?.value : '*'));
   }
 
   async function filterUsers() {
