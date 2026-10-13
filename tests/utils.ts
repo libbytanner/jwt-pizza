@@ -153,6 +153,21 @@ export async function init(page: Page) {
     await route.fulfill({ json: loginRes });
   });
 
+  // logout
+  await page.route("*/**/api/auth", async (route) => {
+    if (route.request().method() !== "DELETE") {
+      route.fallback();
+      return;
+    }
+    const logoutReq = route.request().postDataJSON();
+    loggedInUser = undefined;
+    const logoutRes = {
+      message: "logout successful",
+    };
+    expect(route.request().method()).toBe("DELETE");
+    await route.fulfill({ json: logoutRes });
+  });
+
   // updates/deletes user
   await page.route(/\/api\/user\/([a-zA-Z0-9]+)$/, async (route) => {
     if (route.request().method() === "PUT") {
@@ -247,41 +262,6 @@ export async function init(page: Page) {
     }
   );
 
-  await page.route("*/**/api/auth", async (route) => {
-    if (route.request().method() !== "PUT") {
-      route.fallback();
-      return;
-    }
-    const loginReq = route.request().postDataJSON();
-    const user = validUsers[loginReq.email];
-    if (!user || user.password !== loginReq.password) {
-      await route.fulfill({ status: 401, json: { error: "Unauthorized" } });
-      return;
-    }
-    loggedInUser = validUsers[loginReq.email];
-    const loginRes = {
-      user: loggedInUser,
-      token: "abcdef",
-    };
-    expect(route.request().method()).toBe("PUT");
-    await route.fulfill({ json: loginRes });
-  });
-
-  // logout
-  await page.route("*/**/api/auth", async (route) => {
-    if (route.request().method() !== "DELETE") {
-      route.fallback();
-      return;
-    }
-    const logoutReq = route.request().postDataJSON();
-    loggedInUser = undefined;
-    const logoutRes = {
-      message: "logout successful",
-    };
-    expect(route.request().method()).toBe("DELETE");
-    await route.fulfill({ json: logoutRes });
-  });
-
   // gets currently logged in user
   await page.route("*/**/api/user/me", async (route) => {
     expect(route.request().method()).toBe("GET");
@@ -318,6 +298,7 @@ export async function init(page: Page) {
 
     await route.fulfill({ json: orderRes });
   });
+
   // Gets menu
   await page.route("*/**/api/order/menu", async (route) => {
     const menuRes = [

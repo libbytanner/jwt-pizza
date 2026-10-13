@@ -113,7 +113,6 @@ class HttpPizzaService implements PizzaService {
     limit: number = 10,
     nameFilter: string = "*"
   ): Promise<UserList> {
-    console.log("here")
     return this.callEndpoint(
       `/api/user?page=${page}&limit=${limit}&name=${nameFilter}`
     );
