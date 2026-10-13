@@ -43,7 +43,7 @@ export default function AdminDashboard(props: Props) {
 
   React.useEffect(() => {
     (async () => {
-      setFranchiseList(await pizzaService.getFranchises(franchisePage, 3, "*"));
+      setFranchiseList(await pizzaService.getFranchises(franchisePage, 3, filterUserRef.current?.value ?? "*"));
     })();
   }, [props.user, franchisePage]);
 
@@ -65,7 +65,8 @@ export default function AdminDashboard(props: Props) {
 
   async function deleteUser(user: User) {
     await pizzaService.deleteUser(user);
-    setUserList(await pizzaService.getUsers(usersPage, 10, "*"));
+    if (userList.users.length === 1) setUsersPage(usersPage - 1)
+    setUserList(await pizzaService.getUsers(usersPage, 10, filterUserRef.current?.value ?? '*'));
   }
 
   async function filterUsers() {
