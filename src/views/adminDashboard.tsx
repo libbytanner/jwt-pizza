@@ -69,7 +69,7 @@ export default function AdminDashboard(props: Props) {
 
   async function deleteUser(user: User) {
     await pizzaService.deleteUser(user);
-    if (userList.users.length = 1) setUsersPage(usersPage)
+    if (userList.users.length === 1) setUsersPage(usersPage)
     setUserList(await pizzaService.getUsers(usersPage, 10, filterUserRef.current?.value ? filterUserRef.current?.value : '*'));
   }
 
