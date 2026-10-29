@@ -92,6 +92,8 @@ jobs:
           name: Version ${{ env.version }}
           makeLatest: true
           body: |
+            ## 🚀 Changes
+
             ${{ github.event.head_commit.message }}
 
             **commit**: ${{ github.sha }}
